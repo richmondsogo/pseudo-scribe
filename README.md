@@ -2,7 +2,7 @@
 
 A command-line tool that generates a complete, professionally typeset PDF of university lecture notes from a course outline. Terminology stays consistent across the whole course, chapters are written directly as LaTeX, and the output is a single merged book with a title page, a real table of contents, and correct page numbers.
 
-This is a **V1 reference implementation** — deliberately simple, resumable, and cost-aware. It uses an LLM (Gemini, Groq, or OpenRouter) for content generation and `pdflatex` for typesetting.
+This is a **V1 reference implementation** — deliberately simple, resumable, and cost-aware. It uses an LLM (Gemini, Groq, OpenRouter, or DeepSeek) for content generation and `pdflatex` for typesetting.
 
 ---
 
@@ -13,7 +13,7 @@ This is a **V1 reference implementation** — deliberately simple, resumable, an
 * **Cost-aware** — chapters are written directly as LaTeX, final QA uses bounded per-chapter excerpts, and optional LLM passes are disabled by default.
 * **Terminology consistency** — a course-wide `terminology.json` registry acts as the single source of truth; later chapters must reuse existing definitions or add new ones.
 * **Real book output** — title page, page-numbered table of contents, PDF bookmarks, and a merged single-file PDF built from per-chapter LaTeX.
-* **Provider-agnostic** — works with Gemini, Groq, or OpenRouter. Token-heavy calls can be routed to a different provider.
+* **Provider-agnostic** — works with Gemini, Groq, OpenRouter, or DeepSeek. Token-heavy calls can be routed to a different provider.
 * **Failure recovery** — transient API failures are retried automatically, while completed work is preserved for later runs.
 * **Generation safeguards** — malformed model responses, refusals, LaTeX errors, and terminology conflicts are detected rather than silently written into the final book.
 
@@ -52,6 +52,7 @@ Then add the API key for the provider you want to use.
 | Gemini     | `gemini`       | `GEMINI_API_KEY` or `GOOGLE_API_KEY` |
 | Groq       | `groq`         | `GROQ_API_KEY`                       |
 | OpenRouter | `openrouter`   | `OPENROUTER_API_KEY`                 |
+| DeepSeek   | `deepseek`     | `DEEPSEEK_API_KEY`                   |
 
 Gemini is the default provider.
 
@@ -172,6 +173,7 @@ Supported values:
 gemini
 groq
 openrouter
+deepseek
 ```
 
 ### Gemini
@@ -207,6 +209,15 @@ OpenRouter attribution can optionally be customized:
 OPENROUTER_SITE_URL=https://github.com/richmondsogo/Pseudo-Scribe
 OPENROUTER_SITE_NAME=Pseudo-Scribe
 ```
+
+### DeepSeek
+
+```env
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL=deepseek-chat
+```
+
+Use `deepseek-reasoner` when you want DeepSeek's reasoning model instead.
 
 ### Generation settings
 
@@ -340,7 +351,7 @@ For free or rate-limited providers, keeping this at `1` is recommended.
 HTTP_TIMEOUT_SECONDS=180
 ```
 
-Controls the request timeout for OpenAI-compatible providers such as Groq and OpenRouter.
+Controls the request timeout for compatible chat-completions providers such as Groq, OpenRouter, and DeepSeek.
 
 ### Dry run
 

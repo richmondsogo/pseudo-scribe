@@ -147,7 +147,7 @@ def _parse_retry_after_seconds(error_text: str) -> Optional[float]:
     """Best-effort extraction of a server-suggested wait time from an error message, so
     retries wait exactly as long as the provider says instead of guessing. Handles Gemini's
     structured "'retryDelay': '10s'" fragment, Groq's "please try again in 28m20.35s" (or
-    "in 5s") phrasing, and a bare "Retry-After header: 30s" (added by _call_openai_compatible
+    "in 5s") phrasing, and a bare "Retry-After header: 30s" (added by _call_compatible_chat_completions
     when a provider sets that HTTP header). Returns None if nothing recognizable is found."""
     text = error_text or ""
     m = re.search(r"retryDelay['\"]?\s*:\s*['\"](\d+(?:\.\d+)?)s['\"]", text)
@@ -198,7 +198,7 @@ def call_with_retry(fn, max_retries: int = MAX_API_RETRIES, base_delay: float = 
 # --- LLM wrapper ---
 
 def call_llm(prompt: str, model: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None, provider: Optional[str] = None) -> str:
-    """Call the configured LLM provider (LLM_PROVIDER env var: 'gemini' or 'groq').
+    """Call the configured LLM provider (LLM_PROVIDER env var).
     Pass provider= to override LLM_PROVIDER for just this call (see HEAVY_CALL_PROVIDER).
 
     This function supports a DRY_RUN mode via the environment variable DRY_RUN=1|true which returns canned responses
@@ -269,10 +269,12 @@ def call_llm(prompt: str, model: Optional[str] = None, temperature: Optional[flo
         return _call_groq(prompt, model, temperature)
     elif provider == "openrouter":
         return _call_openrouter(prompt, model, temperature)
+    elif provider == "deepseek":
+        return _call_deepseek(prompt, model, temperature)
     else:
         raise RuntimeError(
             f"Unsupported LLM_PROVIDER '{provider}'. Supported values: 'gemini', 'groq', "
-            f"'openrouter'. Set it in your .env file."
+            f"'openrouter', 'deepseek'. Set it in your .env file."
         )
 
 
@@ -300,9 +302,9 @@ def _call_gemini(prompt: str, model: Optional[str], temperature: float) -> str:
     return out
 
 
-def _call_openai_compatible(provider_label: str, url: str, api_key: str, model: str,
-                             prompt: str, temperature: float, extra_headers: Optional[Dict[str, str]] = None) -> str:
-    """Shared implementation for any OpenAI-compatible chat-completions endpoint (Groq,
+def _call_compatible_chat_completions(provider_label: str, url: str, api_key: str, model: str,
+                                      prompt: str, temperature: float, extra_headers: Optional[Dict[str, str]] = None) -> str:
+    """Shared implementation for compatible chat-completions endpoints (Groq,
     OpenRouter, and similar). Prefers the 'requests' library when available — it handles
     connection resets and flaky networks (a common source of WinError 10054 on Windows) far
     more gracefully than raw urllib — and falls back to stdlib urllib if requests isn't
@@ -387,7 +389,7 @@ def _call_groq(prompt: str, model: Optional[str], temperature: float) -> str:
     if not api_key:
         raise RuntimeError("GROQ_API_KEY must be set to use the groq provider")
     gmodel = model or os.getenv("GROQ_MODEL") or "llama-3.3-70b-versatile"
-    return _call_openai_compatible(
+    return _call_compatible_chat_completions(
         "Groq", "https://api.groq.com/openai/v1/chat/completions", api_key, gmodel, prompt, temperature
     )
 
@@ -410,9 +412,20 @@ def _call_openrouter(prompt: str, model: Optional[str], temperature: float) -> s
         "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "https://github.com/richmondsogo/Pseudo-Scribe"),
         "X-Title": os.getenv("OPENROUTER_SITE_NAME", "Pseudo-Scribe"),
     }
-    return _call_openai_compatible(
+    return _call_compatible_chat_completions(
         "OpenRouter", "https://openrouter.ai/api/v1/chat/completions", api_key, gmodel,
         prompt, temperature, extra_headers=extra_headers
+    )
+
+
+def _call_deepseek(prompt: str, model: Optional[str], temperature: float) -> str:
+    """DeepSeek's chat-completions API for DeepSeek Chat and Reasoner models."""
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY must be set to use the deepseek provider")
+    dmodel = model or os.getenv("DEEPSEEK_MODEL") or "deepseek-chat"
+    return _call_compatible_chat_completions(
+        "DeepSeek", "https://api.deepseek.com/chat/completions", api_key, dmodel, prompt, temperature
     )
 
 # --- File utilities ---
@@ -1572,6 +1585,31 @@ def format_course_dir_name(course_code: str, course_title: str) -> str:
     return name
 
 
+def normalize_chapter_title(title: str) -> str:
+    """Convert common learning-outcome phrasing into concise chapter titles."""
+    value = re.sub(r"\s+", " ", str(title or "")).strip()
+    value = re.sub(r"[;.:]+(?=\s|$)", "", value).strip()
+    value = re.sub(r"\s+(?:and|or)$", "", value, flags=re.IGNORECASE).strip()
+    patterns = (
+        (r"^(?:analyse|analyze) the concepts of (.+)$", r"Foundations of \1"),
+        (r"^list major forms, types and root causes of (.+)$", r"Forms, Types and Root Causes of \1"),
+        (r"^differentiate between (.+)$", r"\1"),
+        (r"^enumerate (.+?) strategies$", r"\1 Strategies"),
+        (r"^describe roles of (.+)$", r"\1"),
+    )
+    transformed = False
+    for pattern, replacement in patterns:
+        match = re.match(pattern, value, flags=re.IGNORECASE)
+        if match:
+            value = re.sub(pattern, replacement, value, flags=re.IGNORECASE)
+            value = re.sub(r"\s+in$", "", value, flags=re.IGNORECASE).strip()
+            value = value.title()
+            value = re.sub(r"\b(Of|And|The|In|On|To)\b", lambda match: match.group().lower(), value)
+            transformed = True
+            break
+    return value if transformed else (value[:1].upper() + value[1:] if value else "Chapter")
+
+
 def parse_outline_text_to_chapters_heuristic(text: str) -> List[Dict[str, Any]]:
     # Regex-based fallback only. Used when the LLM-based extractor (the primary path) is
     # unavailable or fails to parse. See parse_outline_text_to_chapters_llm below.
@@ -1586,7 +1624,7 @@ def parse_outline_text_to_chapters_heuristic(text: str) -> List[Dict[str, Any]]:
         if m:
             num = int(m.group(1))
             title = m.group(2).strip() or f"Chapter {num}"
-            chapters.append({"number": num, "title": title, "topic": ""})
+            chapters.append({"number": num, "title": normalize_chapter_title(title), "topic": ""})
             continue
         m = md_heading_re.match(ln)
         if m:
@@ -1596,23 +1634,23 @@ def parse_outline_text_to_chapters_heuristic(text: str) -> List[Dict[str, Any]]:
             if m2:
                 num = int(m2.group(1))
                 t = m2.group(2).strip() or f"Chapter {num}"
-                chapters.append({"number": num, "title": t, "topic": ""})
+                chapters.append({"number": num, "title": normalize_chapter_title(t), "topic": ""})
             else:
                 # treat as a heading; if no explicit number assign next
-                chapters.append({"number": len(chapters) + 1, "title": title, "topic": ""})
+                chapters.append({"number": len(chapters) + 1, "title": normalize_chapter_title(title), "topic": ""})
             continue
         m = numbered_re.match(ln)
         if m:
             num = int(m.group(1))
             title = m.group(2).strip()
-            chapters.append({"number": num, "title": title, "topic": ""})
+            chapters.append({"number": num, "title": normalize_chapter_title(title), "topic": ""})
     # If still empty, fallback: split by blank lines take first sentence as title
     if not chapters:
         paragraphs = re.split(r"\n\s*\n", text)
         for i, p in enumerate(paragraphs[:50], start=1):
             first_line = p.strip().splitlines()[0][:120]
             if len(first_line) > 0:
-                chapters.append({"number": i, "title": first_line, "topic": ""})
+                chapters.append({"number": i, "title": normalize_chapter_title(first_line), "topic": ""})
     # Ensure unique, sorted by number
     seen = set()
     unique: List[Dict[str, Any]] = []
@@ -1717,7 +1755,7 @@ Raw outline text:
                 num = int(raw_num) if raw_num is not None else i
             except (TypeError, ValueError):
                 num = i
-            title = str(ch.get("title") or f"Chapter {num}").strip() or f"Chapter {num}"
+            title = normalize_chapter_title(str(ch.get("title") or f"Chapter {num}").strip() or f"Chapter {num}")
             topic = str(ch.get("topic") or "").strip()
             chapters.append({"number": num, "title": title, "topic": topic})
         # De-dupe/sort in case the model skipped or repeated numbers
@@ -1744,7 +1782,8 @@ def parse_outline_file(path: Path) -> Dict[str, Any]:
     text = ""
     if ext == ".json":
         data = load_json(path)
-        # If JSON already has chapters and metadata, return as-is
+        for chapter in data.get("chapters", []):
+            chapter["title"] = normalize_chapter_title(chapter.get("title", ""))
         return data
     elif ext in {".md", ".txt"}:
         text = path.read_text(encoding="utf-8")
