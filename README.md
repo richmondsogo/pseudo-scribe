@@ -80,6 +80,7 @@ pip install -r requirements.txt
 | Command | Arguments | Description |
 | --- | --- | --- |
 | `python generate.py` | *None* | Interactive wizard for new courses or resuming incomplete runs. |
+| `python generate.py --version` | *None* | Display program version (`Pseudo-Scribe 1.0.0`). |
 | `python generate.py init` | `<COURSE_ID>` | Create a course folder skeleton under `courses/<COURSE_ID>/`. |
 | `python generate.py profile` | `<COURSE_ID>` | Create or edit `course_profile.md` metadata template. |
 | `python generate.py terminology` | `<COURSE_ID>` | Extract initial terminology registry from the outline. |
@@ -107,7 +108,9 @@ Pseudo-Scribe reads settings from `.env`. See [docs/configuration.md](docs/confi
 | `MAX_CONCURRENT_CHAPTERS` | `1` | Max threads for parallel chapter generation. Keep at 1 for rate-limited tiers. |
 | `MAX_CHAPTER_RETRIES` | `2` | Retries per chapter when model output is empty, a refusal, or invalid LaTeX. |
 | `MAX_API_RETRIES` | `5` | Retries for transient API failures (5xx, 429, timeouts, connection resets). |
+| `API_RETRY_BASE_DELAY` | `2.0` | Base exponential backoff delay in seconds between retries. |
 | `MAX_AUTO_RETRY_WAIT_SECONDS` | `90` | Halts immediately if a provider demands a retry wait longer than this limit. |
+| `HTTP_TIMEOUT_SECONDS` | `180` | Request timeout in seconds for compatible chat completions. |
 | `FINAL_QA_EXCERPT_CHARS` | `1000` | Character limit per chapter sent to final course QA to control prompt size. |
 | `ENABLE_CHAPTER_ENHANCE` | `0` | Optional second pass to insert ASCII diagrams and polish text (alias: `ENABLE_CHAPTER_QA`). |
 | `ENABLE_CONFLICT_CHECK` | `0` | Optional LLM check on redefined terms (original definitions are always kept). |
@@ -119,11 +122,35 @@ Pseudo-Scribe reads settings from `.env`. See [docs/configuration.md](docs/confi
 
 ```text
 pseudo-scribe/
-├── generate.py              # CLI entry point, pipeline logic, and LaTeX compiler
-├── requirements.txt         # Python package dependencies
-├── .env.example             # Example environment configuration
+├── generate.py              # CLI entry point (backward-compatible re-exporter)
+├── pseudoscribe/            # Core package
+│   ├── cli.py               # Argument parsing and interactive wizard
+│   ├── pipeline.py          # Course skeleton creation and lifecycle runner
+│   ├── config.py            # Typed settings and environment parsing
+│   ├── models.py            # Course artifact mappings and concurrency locks
+│   ├── utils.py             # Atomic file I/O, logging, safe printing
+│   ├── retries.py           # Exponential backoff and Retry-After handling
+│   ├── providers.py         # LLM provider dispatch and dry-run mocks
+│   ├── prompts_loader.py    # Template loading and context rendering
+│   ├── outline.py           # Outline parsing (LLM and heuristic)
+│   ├── terminology.py       # Terminology registry and conflict checker
+│   ├── chapter.py           # Chapter writer, enhancement, draft conversion
+│   ├── qa.py                # Final course QA analysis
+│   ├── latex.py             # Preamble, document scaffolding, sanitizers
+│   └── compiler.py          # pdflatex runner and PDF assembly
 ├── prompts/                 # Prompt templates (writer, extractor, QA, enhancer)
-├── docs/                    # Detailed guides (configuration.md, architecture.md)
+├── tests/                   # Pytest suite and golden regression snapshots
+├── docs/                    # Detailed guides
+│   ├── configuration.md     # In-depth environment configuration guide
+│   ├── architecture.md      # Pipeline architecture and lifecycle reference
+│   └── DECISIONS.md         # Architecture and design decision records
+├── requirements.txt         # Runtime dependencies
+├── requirements-dev.txt     # Development and testing dependencies (pytest, ruff)
+├── pyproject.toml           # Ruff linter, formatter, and pytest configuration
+├── .github/workflows/ci.yml # GitHub Actions CI workflow
+├── CHANGELOG.md             # Keep a Changelog version history
+├── CONTRIBUTING.md          # Contribution guidelines
+├── .env.example             # Example environment configuration
 └── courses/<COURSE_ID>/     # Isolated course workspace
     ├── course_profile.md    # Course metadata, university info, and style rules
     ├── outline.json         # Structured chapter list and subtopics
@@ -136,6 +163,41 @@ pseudo-scribe/
     ├── output.pdf           # Final compiled PDF lecture notes
     └── run_warnings.json    # Warnings collected across the run
 ```
+
+---
+
+## Development
+
+Pseudo-Scribe includes a complete offline test suite and automated linting.
+
+### Development Setup
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt -r requirements-dev.txt
+```
+
+### Running Tests
+Execute the test suite with `pytest`:
+```bash
+pytest -v
+```
+All unit and end-to-end characterization tests run under `DRY_RUN=1` and require neither external API keys nor `pdflatex`.
+
+### Linting and Formatting
+Check code quality with [Ruff](https://docs.astral.sh/ruff/):
+```bash
+ruff check .
+ruff format --check .
+```
+To automatically apply fixes and format:
+```bash
+ruff check --fix .
+ruff format .
+```
+
+### Continuous Integration (CI)
+GitHub Actions (`.github/workflows/ci.yml`) runs Ruff linting, formatting checks, and pytest on Python 3.11 and 3.12 for every push and pull request.
 
 ---
 
@@ -166,9 +228,9 @@ For deeper technical details, see [docs/architecture.md](docs/architecture.md).
 
 ## Extending
 
-* **Add an LLM Provider**: Implement a `_call_<name>` helper in `generate.py` and register it in `call_llm()`.
+* **Add an LLM Provider**: Implement a provider helper in `pseudoscribe/providers.py` and register it in `call_llm()`. See [CONTRIBUTING.md](CONTRIBUTING.md) for step-by-step guidance.
 * **Customize Writing Style**: Edit `prompts/chapter_writer.txt` globally, or modify `courses/<COURSE_ID>/prompts/chapter_writer.txt` for a single course.
-* **Adjust Typesetting**: Modify `_shared_preamble()` in `generate.py` to change typography, geometry margins, or LaTeX packages.
+* **Adjust Typesetting**: Modify `_shared_preamble()` in `pseudoscribe/latex.py` to change typography, geometry margins, or LaTeX packages.
 
 ---
 
@@ -183,6 +245,7 @@ For deeper technical details, see [docs/architecture.md](docs/architecture.md).
 
 ## Contributing and License
 
-Contributions are welcome. Please open an issue or pull request with a description of the proposed change and reproduction steps for bug fixes.
+Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for development workflows and check [CHANGELOG.md](CHANGELOG.md) for recent release notes.
 
 Pseudo-Scribe is released under the [Apache-2.0 License](LICENSE).
+

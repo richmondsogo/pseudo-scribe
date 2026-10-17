@@ -143,3 +143,27 @@ Document compilation is handled in `cmd_compile`:
   * Passes 2 & 3: Resolves cross-references, table of contents page numbers, and PDF hyperlink targets.
 * **Log Error Parsing**: Because `pdflatex -interaction=nonstopmode` can exit with code 0 even when fatal formatting errors occur, Pseudo-Scribe parses the raw compilation log for lines starting with `!` and flags errors with log extracts saved to `tex/main.error.log`.
 * **Deliverable**: The resulting `tex/main.pdf` is moved to `output.pdf`.
+
+---
+
+## Codebase Architecture & Modular Package Structure
+
+The codebase is organized into an internal package `pseudoscribe/` with single-responsibility modules, accessed via the root CLI entry point `generate.py`:
+
+* `pseudoscribe/cli.py`: Interactive setup wizard and CLI command parsing (`argparse`).
+* `pseudoscribe/pipeline.py`: Course folder skeleton creation (`cmd_init`) and pipeline orchestration (`run_pipeline`).
+* `pseudoscribe/config.py`: Centralized, typed runtime configuration (`Settings`) and environment variable accessors.
+* `pseudoscribe/models.py`: Course directory and artifact path mappings (`Course`), plus thread-safe mutex locks (`STATE_LOCK`, `TERMINOLOGY_LOCK`).
+* `pseudoscribe/utils.py`: Safe console printing (`_safe_print`), atomic JSON file I/O (`save_json`), and resilient JSON block extraction (`_extract_json`).
+* `pseudoscribe/retries.py`: Exponential backoff with jitter and `Retry-After` header parsing (`call_with_retry`).
+* `pseudoscribe/providers.py`: API integration for Gemini, Groq, OpenRouter, DeepSeek, and dry-run mocks (`call_llm`).
+* `pseudoscribe/prompts_loader.py`: Template loading and placeholder interpolation.
+* `pseudoscribe/outline.py`: Syllabus outline segmentation and title normalization heuristics.
+* `pseudoscribe/terminology.py`: Canonical terminology registry and LLM conflict verification.
+* `pseudoscribe/latex.py`: Preamble generation, book scaffolding, percent sanitization, and delimiter cleanup.
+* `pseudoscribe/chapter.py`: Chapter generation loop, enhancement pass, and legacy draft conversion.
+* `pseudoscribe/qa.py`: Final course QA analysis and report serialization.
+* `pseudoscribe/compiler.py`: `pdflatex` execution and PDF page re-numbering.
+* `generate.py`: Backward-compatible root entry point re-exporting all symbols from `pseudoscribe`.
+
+For historical decisions and design trade-offs, see [docs/DECISIONS.md](DECISIONS.md).
