@@ -1,0 +1,26 @@
+{
+  "course_code": "INS202",
+  "course_title": "Human-Computer Interaction",
+  "department": "CS",
+  "university": "Unilag",
+  "academic_session": "2025/2026",
+  "level": "300",
+  "chapters": [
+    {
+      "number": 1,
+      "title": "Dry-run Chapter One",
+      "topic": "sample topic A, sample topic B"
+    },
+    {
+      "number": 2,
+      "title": "Dry-run Chapter Two",
+      "topic": "sample topic C"
+    },
+    {
+      "number": 3,
+      "title": "Dry-run Chapter Three",
+      "topic": "sample topic D, sample topic E"
+    }
+  ],
+  "prepared_by": "Tester"
+}

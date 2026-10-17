@@ -1,0 +1,16 @@
+{
+  "terms": {
+    "example_term": {
+      "preferred_term": "example_term",
+      "definition": "An example term used in dry run.",
+      "definition_status": "defined",
+      "introduced_in": 1
+    },
+    "new_term": {
+      "preferred_term": "new_term",
+      "definition": "A dry-run example term.",
+      "definition_status": "defined",
+      "introduced_in": 1
+    }
+  }
+}

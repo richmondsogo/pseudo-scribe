@@ -107,12 +107,21 @@ REPO_ROOT = Path(__file__).resolve().parent
 COURSES_DIR = REPO_ROOT / "courses"
 PROMPTS_DIR = REPO_ROOT / "prompts"
 
+# Safe console output for cross-platform terminals
+def _safe_print(msg: str, file: Any = None) -> None:
+    target = file if file is not None else sys.stdout
+    try:
+        print(msg, file=target)
+    except UnicodeEncodeError:
+        encoding = getattr(target, "encoding", "ascii") or "ascii"
+        print(msg.encode(encoding, errors="replace").decode(encoding), file=target)
+
 # Simple logging
 def info(msg: str) -> None:
-    print(msg)
+    _safe_print(msg)
 
 def error(msg: str) -> None:
-    print(f"ERROR: {msg}", file=sys.stderr)
+    _safe_print(f"ERROR: {msg}", file=sys.stderr)
 
 # --- Run-wide warnings ---
 # Collected instead of hard-stopping the pipeline. Printed as a summary at the end
@@ -122,7 +131,7 @@ RUN_WARNINGS: List[str] = []
 
 def warn(msg: str) -> None:
     RUN_WARNINGS.append(msg)
-    print(f"WARNING: {msg}", file=sys.stderr)
+    _safe_print(f"WARNING: {msg}", file=sys.stderr)
 
 def save_run_warnings(c: "Course") -> None:
     if RUN_WARNINGS:
@@ -243,8 +252,32 @@ def call_llm(prompt: str, model: Optional[str] = None, temperature: Optional[flo
         # Chapter writer canned response (terminology + chapter)
         if "you are writing one chapter" in low or "[terminology]" in prompt or "[chapter]" in prompt:
             term_json = {"new_term": {"preferred_term": "new_term", "definition": "A dry-run example term.", "definition_status": "defined", "introduced_in": None}}
-            chapter_md = "# Sample Chapter\n\nThis is a short sample chapter generated in dry-run mode.\n\n## Section 1\nSample content.\n\n## Conclusion\nShort conclusion.\n\n### Tutorial Questions\n1. Sample recall question\n2. Sample conceptual question\n3. Sample application question\n4. Sample comparison question\n5. Sample problem-solving question\n6. Sample extension question\n"
-            return "[TERMINOLOGY]\n" + json.dumps(term_json) + "\n[/TERMINOLOGY]\n\n[CHAPTER]\n" + chapter_md + "\n[/CHAPTER]"
+            chapter_latex = (
+                "\\section{Overview}\n"
+                "This is a comprehensive sample chapter generated in dry-run mode to verify the end-to-end pipeline.\n\n"
+                "\\subsection{Core Concepts}\n"
+                "Sample explanation of core concepts with detailed academic explanations and rigor.\n\n"
+                "\\subsection{Applications}\n"
+                "Sample applied process and worked examples demonstrating practical implementations.\n\n"
+                "\\section{Conclusion}\n"
+                "Short conclusion leading naturally into the next course topic.\n\n"
+                "\\section*{Tutorial Questions}\n"
+                "\\begin{enumerate}\n"
+                "\\item Explain the primary distinction between core concepts.\n"
+                "\\item Describe a common failure mode in practical implementations.\n"
+                "\\item How do the principles discussed apply to modern systems?\n"
+                "\\item Provide a worked example of the process.\n"
+                "\\item Discuss the architectural trade-offs involved.\n"
+                "\\item Synthesize the key outcomes of this chapter.\n"
+                "\\end{enumerate}\n"
+            )
+            return "[TERMINOLOGY]\n" + json.dumps(term_json) + "\n[/TERMINOLOGY]\n\n[CHAPTER]\n" + chapter_latex + "\n[/CHAPTER]"
+        # Chapter enhancer canned pass
+        if "you are the editor of a university lecture note series" in low or "chapter to improve:" in low:
+            m = re.search(r"Chapter to improve:\s*(.*)", prompt, re.DOTALL)
+            if m and m.group(1).strip():
+                return m.group(1).strip()
+            return "\\section{Overview}\nSample enhanced content in dry-run.\n"
         # Chapter QA canned pass
         if "chapter qa assistant" in low or "chapter_markdown" in low:
             return json.dumps({"status": "PASS", "issues": [], "warnings": []})
@@ -1549,29 +1582,29 @@ def print_run_summary(c: Course) -> None:
     total = len(outline_chapters)
     complete = sum(1 for v in chapters_state.values() if v in ("complete", "complete_with_warnings"))
     with_warnings = sum(1 for v in chapters_state.values() if v == "complete_with_warnings")
-    print("\n" + "─" * 50)
-    print("Run summary")
-    print("─" * 50)
+    _safe_print("\n" + "─" * 50)
+    _safe_print("Run summary")
+    _safe_print("─" * 50)
     suffix = f" ({with_warnings} with QA warnings)" if with_warnings else ""
-    print(f"Chapters generated: {complete}/{total}{suffix}")
-    print(f"LLM calls made this run: {LLM_CALL_COUNT}")
+    _safe_print(f"Chapters generated: {complete}/{total}{suffix}")
+    _safe_print(f"LLM calls made this run: {LLM_CALL_COUNT}")
     if state.get("compiled") and c.output_pdf.exists():
-        print(f"PDF ready:   {c.output_pdf}")
+        _safe_print(f"PDF ready:   {c.output_pdf}")
     elif (c.path / "main.tex").exists():
-        print("PDF compile didn't complete, but LaTeX source is ready:")
-        print(f"   {c.path / 'main.tex'}")
-        print(f"   {c.tex_path} (per-chapter .tex files)")
+        _safe_print("PDF compile didn't complete, but LaTeX source is ready:")
+        _safe_print(f"   {c.path / 'main.tex'}")
+        _safe_print(f"   {c.tex_path} (per-chapter .tex files)")
     else:
-        print("No PDF or .tex output this run. Markdown drafts are available:")
-        print(f"   {c.drafts_path}")
+        _safe_print("No PDF or .tex output this run. Markdown drafts are available:")
+        _safe_print(f"   {c.drafts_path}")
     if RUN_WARNINGS:
-        print(f"\n{len(RUN_WARNINGS)} warning(s) were recorded:")
+        _safe_print(f"\n{len(RUN_WARNINGS)} warning(s) were recorded:")
         for w in RUN_WARNINGS[:10]:
-            print(f"   - {w}")
+            _safe_print(f"   - {w}")
         if len(RUN_WARNINGS) > 10:
-            print(f"   ... and {len(RUN_WARNINGS) - 10} more.")
-        print(f"Full list saved to {c.path / 'run_warnings.json'}")
-    print("─" * 50)
+            _safe_print(f"   ... and {len(RUN_WARNINGS) - 10} more.")
+        _safe_print(f"Full list saved to {c.path / 'run_warnings.json'}")
+    _safe_print("─" * 50)
 
 # --- Interactive mode and CLI ---
 from typing import Iterable
@@ -1865,10 +1898,10 @@ def run_pipeline(course_dir_name: str) -> str:
 
 def interactive_setup() -> str:
     # Welcome box
-    print("╭" + "─" * 42 + "╮")
-    print("│       University Lecture Note Generator  │")
-    print("╰" + "─" * 42 + "╯\n")
-    print("Let's create your lecture note. Press Ctrl+C to exit at any time.\n")
+    _safe_print("╭" + "─" * 42 + "╮")
+    _safe_print("│       University Lecture Note Generator  │")
+    _safe_print("╰" + "─" * 42 + "╯\n")
+    _safe_print("Let's create your lecture note. Press Ctrl+C to exit at any time.\n")
     # Check for resumable courses
     COURSES_DIR.mkdir(exist_ok=True)
     incomplete = []
