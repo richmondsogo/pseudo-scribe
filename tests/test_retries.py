@@ -1,8 +1,10 @@
 """Characterization tests for transient error detection and retry/backoff logic."""
 
-import pytest
 import time
 from unittest.mock import patch
+
+import pytest
+
 import generate
 
 

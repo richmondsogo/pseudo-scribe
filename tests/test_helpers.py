@@ -1,7 +1,7 @@
 """Characterization tests for pure helper functions in generate.py."""
 
 import pytest
-import re
+
 import generate
 
 
@@ -65,10 +65,7 @@ def test_sanitize_latex_percent():
 
 
 def test_strip_stray_delimiters():
-    raw = (
-        "[TERMINOLOGY]\n{\"term\": 1}\n[/TERMINOLOGY]\n"
-        "[CHAPTER]\n\\section{Intro}\nHello world.\n[/CHAPTER]"
-    )
+    raw = '[TERMINOLOGY]\n{"term": 1}\n[/TERMINOLOGY]\n[CHAPTER]\n\\section{Intro}\nHello world.\n[/CHAPTER]'
     cleaned = generate._strip_stray_delimiters(raw)
     assert "[TERMINOLOGY]" not in cleaned
     assert "[CHAPTER]" not in cleaned
@@ -99,7 +96,7 @@ def test_looks_like_usable_chapter_body():
 def test_parse_generation_output():
     text = (
         "[TERMINOLOGY]\n"
-        "{\"terms\": {\"cache\": {\"preferred_term\": \"cache\", \"definition\": \"fast memory\"}}}\n"
+        '{"terms": {"cache": {"preferred_term": "cache", "definition": "fast memory"}}}\n'
         "[/TERMINOLOGY]\n\n"
         "[CHAPTER]\n"
         "\\section{Memory}\n"
@@ -111,13 +108,7 @@ def test_parse_generation_output():
     assert "\\section{Memory}" in chapter
 
     # Malformed closing tag \end{CHAPTER}
-    malformed = (
-        "[TERMINOLOGY]\n{}\n[/TERMINOLOGY]\n"
-        "[CHAPTER]\n"
-        "\\section{Test}\n"
-        "Body content.\n"
-        "\\end{CHAPTER}"
-    )
+    malformed = "[TERMINOLOGY]\n{}\n[/TERMINOLOGY]\n[CHAPTER]\n\\section{Test}\nBody content.\n\\end{CHAPTER}"
     terms2, chapter2 = generate.parse_generation_output(malformed)
     assert "\\section{Test}" in chapter2
 

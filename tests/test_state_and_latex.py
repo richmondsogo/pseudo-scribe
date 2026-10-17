@@ -1,8 +1,9 @@
 """Characterization tests for state tracking and LaTeX document building / log parsing."""
 
-import pytest
 import json
-from pathlib import Path
+
+import pytest
+
 import generate
 
 
@@ -99,10 +100,9 @@ def test_pdflatex_log_error_detection():
     ==> Fatal error occurred, no output PDF file produced!
     """
     error_lines = [
-        ln.strip() for ln in log_text.splitlines()
-        if ln.strip().startswith("!")
-        and "Emergency stop" not in ln
-        and "==> Fatal error occurred" not in ln
+        ln.strip()
+        for ln in log_text.splitlines()
+        if ln.strip().startswith("!") and "Emergency stop" not in ln and "==> Fatal error occurred" not in ln
     ]
     assert len(error_lines) == 1
     assert error_lines[0] == "! Undefined control sequence."

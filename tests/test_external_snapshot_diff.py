@@ -2,7 +2,9 @@
 
 import json
 from pathlib import Path
+
 import pytest
+
 import generate
 
 EXTERNAL_SNAPSHOT = Path(r"C:\Users\Richmond\AppData\Local\Temp\pseudo_scribe_baseline_snapshot")
@@ -16,15 +18,17 @@ def test_matches_external_snapshot(tmp_path, monkeypatch):
 
     fixture_outline = Path(__file__).parent / "fixtures" / "sample_outline.md"
     outline = generate.parse_outline_file(fixture_outline)
-    outline.update({
-        "course_code": "INS202",
-        "course_title": "Human-Computer Interaction",
-        "department": "CS",
-        "university": "Unilag",
-        "academic_session": "2025/2026",
-        "level": "300",
-        "prepared_by": "Tester"
-    })
+    outline.update(
+        {
+            "course_code": "INS202",
+            "course_title": "Human-Computer Interaction",
+            "department": "CS",
+            "university": "Unilag",
+            "academic_session": "2025/2026",
+            "level": "300",
+            "prepared_by": "Tester",
+        }
+    )
 
     course_id = "INS202_ExtTest"
     generate.cmd_init(course_id)

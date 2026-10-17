@@ -1,8 +1,7 @@
 """Characterization tests for terminology registry and conflict management."""
 
 import pytest
-import json
-from pathlib import Path
+
 import generate
 
 
@@ -31,11 +30,7 @@ def temp_course(tmp_path):
 def test_merge_chapter_terms_preserves_first_definition(temp_course):
     # Initial chapter introduces term
     proposed_ch1 = {
-        "cache": {
-            "preferred_term": "cache",
-            "definition": "Fast temporary storage.",
-            "definition_status": "defined"
-        }
+        "cache": {"preferred_term": "cache", "definition": "Fast temporary storage.", "definition_status": "defined"}
     }
     added1 = generate._merge_chapter_terms(temp_course, 1, proposed_ch1)
     assert added1 == 1
@@ -49,13 +44,13 @@ def test_merge_chapter_terms_preserves_first_definition(temp_course):
         "cache": {
             "preferred_term": "cache",
             "definition": "A hardware buffer between CPU and RAM.",
-            "definition_status": "defined"
+            "definition_status": "defined",
         },
         "register": {
             "preferred_term": "register",
             "definition": "Small fast storage inside CPU.",
-            "definition_status": "defined"
-        }
+            "definition_status": "defined",
+        },
     }
     added2 = generate._merge_chapter_terms(temp_course, 2, proposed_ch2)
     assert added2 == 1  # only 'register' was newly added
